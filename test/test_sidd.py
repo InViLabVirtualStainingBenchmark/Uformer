@@ -8,7 +8,6 @@ import torch.nn as nn
 import torch
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
-from ptflops import get_model_complexity_info
 
 dir_name = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(dir_name,'../dataset/'))
@@ -29,7 +28,7 @@ parser.add_argument('--input_dir', default='/data1/wangzd/datasets/denoising/sid
     type=str, help='Directory of validation images')
 parser.add_argument('--result_dir', default='/data1/wangzd/uformer_cvpr/results_release/denoising/SIDD/Uformer_B/',
     type=str, help='Directory for results')
-parser.add_argument('--weights', default='/data1/wangzd/uformer_cvpr/logs/denoising/SIDD/Uformer_B_1129/models/model_best.pth',
+parser.add_argument('--weights', default='checkpoints/denoising/Uformer_B.pth',
     type=str, help='Path to weights')
 parser.add_argument('--gpus', default='3', type=str, help='CUDA_VISIBLE_DEVICES')
 parser.add_argument('--arch', default='Uformer_B', type=str, help='arch')

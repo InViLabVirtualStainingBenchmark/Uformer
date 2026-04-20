@@ -1,5 +1,11 @@
 ### test on SIDD ###
-# python3 test/test_sidd.py --input_dir ../datasets/denoising/sidd_val/ --result_dir ./results/denoising/SIDD/ --weights ./logs/denoising/SIDD/Uformer_B/models/model_best.pth 
+## python3 test/test_sidd.py --input_dir ../datasets/denoising/sidd_val/ --result_dir ./results/denoising/SIDD/ --weights ./logs/denoising/SIDD/Uformer_B/models/model_best.pth 
+  python3 test/test_sidd.py \
+  --input_dir datasets/denoising/sidd/val \
+  --result_dir results/sidd \
+  --weights checkpoints/denoising/Uformer_B.pth \
+  --gpus -1
+
 
 ### test on DND ###
 # python3 test/test_dnd.py --input_dir ../datasets/denoising/dnd/input/ --result_dir ./results/denoising/DND/ --weights ./logs/denoising/SIDD/Uformer_B/models/model_best.pth 
