@@ -16,7 +16,6 @@ dataset/
 datasets/
 .idea/
 *xml
-
 results/
 eggs/
 .eggs/
