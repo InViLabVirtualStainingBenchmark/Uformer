@@ -189,6 +189,9 @@ Noise reduction improves feature extraction, embedding consistency, and classifi
 In pathology, signal quality is everything. Cleaner images → better models → more reliable diagnostics. Uformer provides a fast, transformer-based denoising solution that integrates seamlessly into modern digital pathology pipelines.
  
 ---
+This repo wasnt tested on neither BCI OR MINST because it is a denoising model not a virtual staining model
+
+---
  
 ## 8. Summary
  
