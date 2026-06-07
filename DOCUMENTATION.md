@@ -1,4 +1,4 @@
-** UFORMER BCI HE→IHC **
+UFORMER BCI HE→IHC 
 ---
 
 ````markdown
