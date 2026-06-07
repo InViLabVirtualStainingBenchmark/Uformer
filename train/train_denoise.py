@@ -92,7 +92,7 @@ if opt.warmup:
     scheduler = GradualWarmupScheduler(optimizer, multiplier=1, total_epoch=warmup_epochs, after_scheduler=scheduler_cosine)
     scheduler.step()
 else:
-    step = 50
+    step = opt.step_lr
     print("Using StepLR,step={}!".format(step))
     scheduler = StepLR(optimizer, step_size=step, gamma=0.5)
     scheduler.step()
