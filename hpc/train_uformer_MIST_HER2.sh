@@ -1,4 +1,4 @@
-#!/bin/bash
+ #!/bin/bash
 #SBATCH --job-name=uformer_MIST_HER2
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

@@ -1,204 +1,170 @@
-UFORMER BCI HE→IHC 
----
+--- 
+# Uformer: BCI Virtual Staining
+Local setup and initial training for H&E → IHC translation · BCI Dataset · Thomas's PC
 
-````markdown
-# Uformer BCI HE→IHC Virtual Staining Project
+> **Note:** This documents the local development setup used on Thomas's PC before HPC training.
+> For HPC training, inference, and evaluation on the CalcUA cluster, see [HPC-INSTRUCTION.md](HPC-INSTRUCTION.md).
+> See the [official Uformer repository](https://github.com/ZhendongWang6/Uformer) for the original codebase.
+
+---
 
 ## 1. Project Goal
 
-This project adapts the **Uformer architecture** (originally designed for image denoising) to perform **virtual staining**:
+This adapts Uformer (originally designed for image denoising) to perform **virtual histological staining**:
 
-- **Input:** H&E (HE) histology tiles  
-- **Output:** Immunohistochemistry (IHC) tiles  
+- **Input:** H&E stained histology tiles
+- **Output:** IHC stained equivalents
 
-The model was trained and evaluated using the **BCI dataset**, within a unified environment shared across multiple virtual staining models.
+Trained and evaluated on the **BCI dataset** as part of the InViLab Virtual Staining Benchmark.
 
 ---
 
 ## 2. Environment Setup
 
-We used a unified conda environment:
+A unified conda environment was used across all models in the benchmark:
 
 ```bash
 conda activate vs_ua
-````
+```
 
-This environment includes dependencies for:
+This environment covers dependencies for Uformer, Restormer, SwinIR, and other models in the benchmark.
 
-* Uformer
-* Restormer
-* SwinIR
-* Other virtual staining models
-
-This ensures compatibility and consistent package versions across repositories.
+> **To do:** verify exact packages installed in `vs_ua` on Thomas's PC and document them here.
 
 ---
 
 ## 3. Dataset Preparation
 
-Dataset directory:
+The BCI dataset was structured to match Uformer's expected `input/` and `groundtruth/` folder names.
 
-```bash
+> **Note:** The preferred approach is to adapt the dataloader to the dataset format, not the other way around. The dataloader (`dataset/dataset_denoise.py`) expects `input/` and `groundtruth/` subdirectories. For HPC training this was solved with runtime symlinks — see [HPC-INSTRUCTION.md](HPC-INSTRUCTION.md).
+
+Dataset directory on Thomas's PC:
+
+```
 ~/virtual_stain/data/BCI_Uformer/
+├── train/
+│   ├── input/         ← H&E tiles
+│   └── groundtruth/   ← IHC tiles
+└── test/
+    ├── input/
+    └── groundtruth/
 ```
 
-Structure:
+Each H&E and IHC pair shares the same filename:
 
 ```
-BCI_Uformer/
-    train/
-        input/         # HE tiles
-        groundtruth/   # IHC tiles
-    test/
-        input/
-        groundtruth/
+00001_train_1+.png  ← H&E
+00001_train_1+.png  ← IHC (same name, different folder)
 ```
 
-Each HE/IHC pair shares the same filename:
-
-```
-00001_train_1+.png
-00001_train_1+.png
-```
+> **Note:** At the time of local training there was no separate validation split — `test/` was used as the validation set. This may affect reproducibility of the training command below.
 
 ---
 
-## 4. Training the Uformer Model
-
-Training command:
+## 4. Training
 
 ```bash
-python train_denoise.py \
+python train/train_denoise.py \
     --train_dir ~/virtual_stain/data/BCI_Uformer/train \
     --val_dir   ~/virtual_stain/data/BCI_Uformer/test \
-    --arch Uformer_B \
+    --arch      Uformer_B \
     --batch_size 1 \
-    --train_ps 128 \
+    --train_ps  128 \
     --embed_dim 32 \
-    --gpu 0 \
-    --exp_name Uformer_BCI_HE2IHC
+    --gpu       0 \
+    --dataset   BCI \
+    --env       _BCI_HE2IHC \
+    --step_lr   13
 ```
 
-### Output Directory
+> **To do:** verify this command runs correctly on Thomas's PC with the current repo state.
+
+### Output Structure
+
+The output path is constructed automatically from `--save_dir`, `--dataset`, `--arch`, and `--env`:
 
 ```
-~/virtual_stain/outputs/Uformer_BCI_HE2IHC/denoising/SIDD/Uformer_BBCI_HE2IHC_UformerB/
+{save_dir}/denoising/{dataset}/{arch}{env}/
 ```
 
-Contents:
+For the command above this resolves to:
 
 ```
-models/
-    model_best.pth
-    model_latest.pth
-logs/
-results/
+~/virtual_stain/outputs/Uformer_BCI_HE2IHC/denoising/BCI/Uformer_B_BCI_HE2IHC/
+├── models/
+│   ├── model_best.pth      ← saved when validation PSNR improves
+│   └── model_latest.pth    ← saved after every epoch
+└── <timestamp>.txt         ← training log
 ```
+
+> **Why `denoising/` in the path?** This subfolder is hardcoded in `train/train_denoise.py` at the log directory construction line. It can be changed there if needed — look for `log_dir = os.path.join(opt.save_dir, 'denoising', ...)`.
 
 ---
 
-## 5. Modifications to Uformer
+## 5. Inference
 
-No core Uformer files were modified.
+Inference uses `script/test_uformer_bci.py` — a custom script for BCI virtual staining evaluation.
 
-### Custom Additions
+> ⚠️ **This script is currently empty in the repository.** The working version needs to be recovered from Thomas's PC. See cleanup note #1.
 
-#### ✔ Custom Test Script
+When complete, it will:
+- Load full H&E test images
+- Run Uformer inference
+- Save predicted IHC images
+- Compute PSNR and SSIM
+- Generate side-by-side H&E / Predicted IHC / Ground Truth comparisons
 
-Created:
-
-```
-~/virtual_stain/scripts/test_uformer_bci.py
-```
-
-### Features:
-
-* Loads PNG HE images
-* Runs Uformer inference
-* Saves predicted IHC images
-* Computes:
-
-  * PSNR (Peak Signal-to-Noise Ratio)
-  * SSIM (Structural Similarity Index)
-* Generates labeled side-by-side comparisons
-
-#### ✔ Additional Enhancements
-
-* `--max_images` argument (limit number of test samples)
-* Side-by-side visualization:
-
-  * HE Input
-  * Predicted IHC
-  * Ground Truth IHC
-* Automatic padding to multiples of 128 (required for Uformer)
-* Fully compatible with unified environment
-
----
-
-## 6. Running Inference
-
-Navigate to Uformer repository:
+Expected usage (to be verified):
 
 ```bash
-cd ~/virtual_stain/repos/Uformer
-```
-
-Run the test script:
-
-```bash
-python ../../scripts/test_uformer_bci.py \
+python script/test_uformer_bci.py \
     --input_dir  ~/virtual_stain/data/BCI_Uformer/test/input \
     --gt_dir     ~/virtual_stain/data/BCI_Uformer/test/groundtruth \
     --result_dir ~/virtual_stain/outputs/Uformer_BCI_HE2IHC/results \
-    --weights    ~/virtual_stain/outputs/Uformer_BCI_HE2IHC/denoising/SIDD/Uformer_BBCI_HE2IHC_UformerB/models/model_best.pth \
-    --gpu        0 \
-    --max_images 30
+    --weights    ~/virtual_stain/outputs/.../models/model_best.pth \
+    --gpu        0
 ```
 
 ---
 
-## 7. Output Structure
+## 6. Modifications to Uformer
 
-Results directory:
+The following files were changed from the original repository:
 
-```
-~/virtual_stain/outputs/Uformer_BCI_HE2IHC/results/
-```
+### `train/train_denoise.py`
 
-### Predicted Images
+**Line 95** — `step_lr` was hardcoded to 50:
 
-```
-predicted_IHC/
-    00000_test_1+.png
-    00001_test_2+.png
-```
+```python
+# Original
+step = 50
 
-### Comparison Visualizations
-
-```
-comparison/
-    00000_test_1+.png
-    00001_test_2+.png
+# Modified
+step = opt.step_lr
 ```
 
-Each comparison image contains:
+This allows the learning rate decay step to be controlled via CLI, which is required for the two-part chained job setup on HPC.
 
-```
-[ HE Input | Predicted IHC | Ground Truth IHC ]
+### `utils/image_utils.py`
+
+`is_png_file()` was extended to also accept JPEG files:
+
+```python
+# Original
+return any(filename.endswith(extension) for extension in [".png"])
+
+# Modified
+return any(filename.endswith(extension) for extension in [".png", ".jpg", ".jpeg"])
 ```
 
-With labels displayed at the top.
+This was needed for MIST dataset support — MIST images are JPEGs, not PNGs.
 
 ---
 
-## 8. Evaluation Metrics
+## 7. Results
 
-The script computes:
-
-* **PSNR (Peak Signal-to-Noise Ratio)**
-* **SSIM (Structural Similarity Index)**
-
-### Example Output
+Initial local run (30 test images, `train_ps 128`):
 
 ```
 Average PSNR : 22.0656 dB
@@ -206,26 +172,6 @@ Average SSIM : 0.6288
 Images tested: 30
 ```
 
----
+> Full benchmark results (512×512 patch, 26 epochs, HPC training) are in [HPC-INSTRUCTION.md](HPC-INSTRUCTION.md).
 
-## 9. Summary of Changes
 
-### Created
-
-```
-~/virtual_stain/scripts/test_uformer_bci.py
-```
-
-(Custom inference + evaluation script)
-
-### Edited
-
-* None of the core Uformer files
-
-### Used
-
-* `train_denoise.py` (training)
-* `utils.get_arch()` (model loading)
-* `model_best.pth` (trained weights)
-
-```
