@@ -165,9 +165,9 @@ Epoch counts were chosen to match approximately 100k training iterations for fai
 
 ### Training Wrappers
 
-The root-level `.sh` scripts (e.g. `train_uformer_BCI.sh`) are the **inner scripts** called inside the container. They set dataset-specific arguments and are not submitted directly to SLURM.
+The root-level `.sh` scripts (e.g. `hpc/train_uformer_BCI.sh`) are the **inner scripts** called inside the container. They set dataset-specific arguments and are not submitted directly to SLURM.
 
-**BCI** (`train_uformer_BCI.sh`):
+**BCI** (`hpc/train_uformer_BCI.sh`):
 ```bash
 python3 train/train_denoise.py \
     --arch        Uformer_B \
@@ -261,13 +261,13 @@ $VSC_DATA/projects/outputs/uformer_MIST_ER_512_24ep_leibniz/
 
 ## Inference
 
-Inference uses `test_uformer_bci.py` located at the root of the Uformer repository. It:
+Inference uses `hpc/test_uformer_bci.py` located at the root of the Uformer repository. It:
 - Loads the trained model from `model_best.pth`
 - Pads images to multiples of 128 (required by Uformer's window attention)
 - Runs inference on all test images
 - Saves predicted IHC images to the output directory
 
-> ⚠️ The working version of this script exists on the cluster at `$VSC_DATA/projects/code/Uformer/test_uformer_bci.py` but has not yet been committed to the repository. The `script/test_uformer_bci.py` in the repo is empty — see cleanup note #1.
+> Note: `script/test_uformer_bci.py` is empty — this is a placeholder for a future local evaluation script with PSNR/SSIM metrics. The HPC inference script is `hpc/test_uformer_bci.py`.
 
 Submit inference with:
 
