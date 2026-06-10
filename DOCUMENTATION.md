@@ -104,21 +104,19 @@ For the command above this resolves to:
 
 ## 5. Inference
 
-Inference uses `script/test_uformer_bci.py` — a custom script for BCI virtual staining evaluation.
+Inference uses `test/test_uformer_bci.py` — a custom script for BCI virtual staining evaluation.
 
-> ⚠️ **This script is currently empty in the repository.** The working version needs to be recovered from Thomas's PC. See cleanup note #1.
+It:
+- Loads full H&E test images
+- Runs Uformer inference
+- Saves predicted IHC images
+- Computes PSNR and SSIM
+- Generates side-by-side H&E / Predicted IHC / Ground Truth comparisons
 
-When complete, it will:
-- Load full H&E test images
-- Run Uformer inference
-- Save predicted IHC images
-- Compute PSNR and SSIM
-- Generate side-by-side H&E / Predicted IHC / Ground Truth comparisons
-
-Expected usage (to be verified):
+Usage:
 
 ```bash
-python script/test_uformer_bci.py \
+python test/test_uformer_bci.py \
     --input_dir  ~/virtual_stain/data/BCI_Uformer/test/input \
     --gt_dir     ~/virtual_stain/data/BCI_Uformer/test/groundtruth \
     --result_dir ~/virtual_stain/outputs/Uformer_BCI_HE2IHC/results \

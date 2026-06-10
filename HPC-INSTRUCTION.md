@@ -53,15 +53,15 @@ Uformer uses a U-Net style hierarchical transformer architecture for image resto
 
 Training runs inside an Apptainer container on the CalcUA Vaughan cluster.
 
-**Primary container:** `uformer_nvidia.sif` (NVIDIA A100, ampere_gpu partition)
+**Primary container:** `uformer_nvidia.sif` (NVIDIA A100, `ampere_gpu` partition)
 - Base image: `pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime`
 - PyTorch: 1.13.1+cu116
 - Python: 3.9
 
-**ROCm container:** `uformer_rocm.sif` (AMD MI100, arcturus_gpu partition)
+**ROCm container:** `uformer_rocm.sif` (AMD MI100, `arcturus_gpu` partition)
 - Built from `uformer_rocm.def` in `$VSC_SCRATCH/containers/`
 - PyTorch: 2.1.2+rocm5.6
-- Required for arcturus nodes — `basicsr_rocm.sif` cannot be used for Uformer (missing `natsort`)
+- Required for arcturus nodes — `basicsr_rocm.sif` cannot be used for Uformer (missing natsort)
 
 **Container locations:**
 ```
@@ -84,7 +84,6 @@ $VSC_SCRATCH/containers/uformer_rocm.sif     ← AMD training
 **Key paths:**
 ```
 $VSC_DATA/projects/code/Uformer/          ← repository
-$VSC_DATA/projects/jobs/                  ← SLURM job scripts
 $VSC_DATA/projects/logs/                  ← job logs
 $VSC_DATA/projects/outputs/               ← training checkpoints
 $VSC_SCRATCH/containers/                  ← Apptainer containers
@@ -95,7 +94,7 @@ $VSC_SCRATCH/containers/                  ← Apptainer containers
 
 ## Dataset Preparation
 
-All datasets are stored as SquashFS images (`.sqsh`) for fast HPC I/O using a neutral folder structure:
+All datasets are stored as **SquashFS images** (`.sqsh`) for fast HPC I/O using a neutral folder structure:
 
 ```
 dataset.sqsh (mounted at /data)
@@ -121,7 +120,7 @@ dataset.sqsh (mounted at /data)
 
 **Runtime symlinks:**
 
-Uformer's `DataLoaderTrain` expects `input/` and `groundtruth/` subdirectories. Since the neutral squashfs uses `HE/` and `IHC/`, job scripts create symlinks at runtime:
+Uformer's `DataLoaderTrain` expects `input/` and `groundtruth/` subdirectories. Job scripts create symlinks at runtime:
 
 ```bash
 mkdir -p /tmp/bci/train /tmp/bci/val
@@ -131,8 +130,6 @@ ln -s /data/val/HE    /tmp/bci/val/input
 ln -s /data/val/IHC   /tmp/bci/val/groundtruth
 ```
 
-The training wrappers then pass `--train_dir /tmp/bci/train --val_dir /tmp/bci/val`.
-
 ---
 
 ## Training
@@ -141,15 +138,8 @@ The training wrappers then pass `--train_dir /tmp/bci/train --val_dir /tmp/bci/v
 
 A full training run exceeds the 23-hour wall time limit at 512×512 patch size, so training is split into two chained SLURM jobs:
 
-**BCI (26 epochs total):**
-- Part 1: epochs 1 → 13
-- Part 2: resumes from `model_latest.pth` at epoch 13, continues to epoch 26
-
-**MIST (24 epochs total):**
-- Part 1: epochs 1 → 12
-- Part 2: resumes from `model_latest.pth` at epoch 12, continues to epoch 24
-
-Resuming uses `--resume` and `--pretrain_weights` pointing to `model_latest.pth` from part 1.
+- **BCI (26 epochs total):** Part 1: epochs 1→13 / Part 2: resumes from `model_latest.pth`, epochs 13→26
+- **MIST (24 epochs total):** Part 1: epochs 1→12 / Part 2: resumes from `model_latest.pth`, epochs 12→24
 
 ### Epoch Count Rationale
 
@@ -165,9 +155,9 @@ Epoch counts were chosen to match approximately 100k training iterations for fai
 
 ### Training Wrappers
 
-The root-level `.sh` scripts (e.g. `hpc/train_uformer_BCI.sh`) are the **inner scripts** called inside the container. They set dataset-specific arguments and are not submitted directly to SLURM.
+The root-level `.sh` scripts (`train_uformer_BCI.sh`, `train_uformer_MIST_ER.sh` etc.) are **inner container scripts** called from inside the Apptainer container. They set dataset-specific arguments and are not submitted directly to SLURM.
 
-**BCI** (`hpc/train_uformer_BCI.sh`):
+Example — BCI (`train_uformer_BCI.sh`):
 ```bash
 python3 train/train_denoise.py \
     --arch        Uformer_B \
@@ -187,10 +177,8 @@ python3 train/train_denoise.py \
 
 ### Job Scripts
 
-All SLURM job scripts live at `$VSC_DATA/projects/jobs/`:
-
 ```
-jobs/
+hpc/
 ├── submit_uformer_BCI_512_26ep.sh              ← chains part1 + part2
 ├── train_uformer_BCI_512_26ep_part1.sh
 ├── train_uformer_BCI_512_26ep_part2.sh
@@ -199,36 +187,26 @@ jobs/
 ├── train_uformer_MIST_ER_512_24ep_part1_leibniz.sh  ← pascal/arcturus fallback
 ├── train_uformer_MIST_ER_512_24ep_part2.sh
 ├── train_uformer_MIST_ER_512_24ep_part2_leibniz.sh
+├── run_benchmark_BCI_uformer.sh                ← BCI inference
+├── run_benchmark_MIST_uformer_ER.sh            ← MIST ER inference
+├── eval_uformer_BCI_benchmark.sh               ← BCI evaluation
 └── ... (same pattern for HER2, Ki67, PR)
 ```
 
-> The `_leibniz` variants were used when Vaughan ampere_gpu was unavailable. They are configured for Leibniz pascal_gpu (P100) or arcturus_gpu (MI100) depending on availability.
+The `_leibniz` variants were used when Vaughan `ampere_gpu` was unavailable. They are configured for Leibniz `pascal_gpu` (P100) or `arcturus_gpu` (MI100) depending on availability.
 
 ### Submitting Training
 
 **BCI:**
 ```bash
-sbatch $VSC_DATA/projects/jobs/submit_uformer_BCI_512_26ep.sh
+sbatch hpc/submit_uformer_BCI_512_26ep.sh
 ```
 
-**MIST (submit all 4 biomarkers):**
+**MIST (all 4 biomarkers):**
 ```bash
 for marker in ER HER2 Ki67 PR; do
-    sbatch $VSC_DATA/projects/jobs/submit_uformer_MIST_${marker}_512_24ep.sh
+    sbatch hpc/submit_uformer_MIST_${marker}_512_24ep.sh
 done
-```
-
-### Monitoring
-
-```bash
-# Check running jobs
-squeue -u vsc21216 --format="%.18i %.35j %.8T %.10M %R"
-
-# Watch training log live
-tail -f $VSC_DATA/projects/logs/uformer_BCI_512_26ep_p1_<JOBID>.out
-
-# Check quota
-myquota
 ```
 
 ### Output Structure
@@ -240,7 +218,7 @@ $VSC_DATA/projects/outputs/uformer_BCI_512_26ep/
         └── BCI/
             └── Uformer_B_512_26ep/
                 ├── models/
-                │   ├── model_best.pth      ← best validation PSNR
+                │   ├── model_best.pth      ← best validation PSNR (use for inference)
                 │   └── model_latest.pth    ← saved after every epoch
                 └── <timestamp>.txt         ← training log
 
@@ -257,36 +235,46 @@ $VSC_DATA/projects/outputs/uformer_MIST_ER_512_24ep_leibniz/
 
 > MIST output directories have `_leibniz` suffix because part 1 was trained on Leibniz nodes.
 
+### Monitoring
+
+```bash
+# Check running jobs
+squeue -u vsc21216 --format="%.18i %.35j %.8T %.10M %R"
+
+# Watch training log live
+tail -f $VSC_DATA/projects/logs/uformer_BCI_512_26ep_p1_<JOBID>.out
+
+# Check quota
+myquota
+```
+
 ---
 
 ## Inference
 
-Inference uses `hpc/test_uformer_bci.py` located at the root of the Uformer repository. It:
-- Loads the trained model from `model_best.pth`
-- Pads images to multiples of 128 (required by Uformer's window attention)
-- Runs inference on all test images
-- Saves predicted IHC images to the output directory
-
-> Note: `script/test_uformer_bci.py` is empty — this is a placeholder for a future local evaluation script with PSNR/SSIM metrics. The HPC inference script is `hpc/test_uformer_bci.py`.
-
-Submit inference with:
+Benchmark inference uses the unified `benchmark_inference.py` script:
 
 ```bash
-sbatch $VSC_DATA/projects/jobs/infer_uformer_BCI_512.sh
+sbatch hpc/run_benchmark_BCI_uformer.sh
 ```
 
-Outputs are saved to:
+Results are saved to:
 ```
-/scratch/antwerpen/grp/ap_invilab_td_thesis/transformer_prediction/Uformer_BCI_512/
+/scratch/antwerpen/grp/ap_invilab_td_thesis/benchmark_inference/uformer_BCI/
+├── comparison/      ← side-by-side PNGs (HE | predicted | GT)
+├── predicted/       ← predicted IHC only
+├── metrics.csv      ← per-image PSNR and SSIM
+└── summary.txt      ← average PSNR and SSIM
 ```
+
+> A standalone inference script `test/test_uformer_bci.py` is also available for running inference outside the benchmark pipeline. It includes per-image PSNR/SSIM computation and side-by-side comparison image generation.
+
 ---
 
 ## Evaluation
 
-Evaluation uses the shared `evaluate.py` script from the InViLab benchmark repository:
-
 ```bash
-sbatch $VSC_DATA/projects/jobs/eval_uformer_BCI_512.sh
+sbatch hpc/eval_uformer_BCI_benchmark.sh
 ```
 
 Runs on the `broadwell` (CPU) partition of Leibniz inside `evaluate_nvidia.sif`.
@@ -304,23 +292,23 @@ Results are appended to:
 
 ### BCI Dataset
 
-| Model | PSNR ↑ | SSIM ↑ | FID ↓ | Notes |
-|-------|--------|--------|-------|-------|
-| Uformer (128px crop) | 22.82 | 0.662 | 245.68 | Early run, smaller patch size |
-| Uformer_512 (512px crop, 26ep) | 22.68 | 0.659 | 213.09 | Current benchmark run |
+| Model | PSNR ↑ | SSIM ↑ | MS-SSIM ↑ | LPIPS-Alex ↓ | LPIPS-VGG ↓ | MAE ↓ | FID ↓ |
+|-------|--------|--------|-----------|--------------|-------------|-------|-------|
+| Uformer (128px crop, early run) | 22.82 | 0.662 | — | — | — | — | 245.68 |
+| Uformer_512 (512px crop, 26ep) | **22.68** | **0.659** | 0.5652 | 0.6364 | 0.6154 | 0.0713 | **213.09** |
 
 > FID improved significantly (245 → 213) with 512×512 patch training despite a marginal PSNR difference.
 
 ### MIST Dataset
 
-| Model | Marker | PSNR ↑ | SSIM ↑ | FID ↓ |
-|-------|--------|--------|--------|-------|
-| Uformer | ER | 16.10 | — | — |
-| Uformer | HER2 | — | — | — |
-| Uformer | Ki67 | — | — | — |
-| Uformer | PR | — | — | — |
+| Model | Marker | PSNR ↑ | SSIM ↑ | LPIPS-Alex ↓ | FID ↓ |
+|-------|--------|--------|--------|--------------|-------|
+| Uformer | ER | — | — | — | — |
+| Uformer | HER2 | — | — | — | — |
+| Uformer | Ki67 | — | — | — | — |
+| Uformer | PR | — | — | — | — |
 
-*MIST training in progress. Results will be updated after inference and evaluation complete.*
+*MIST inference in progress. Results will be updated after evaluation completes.*
 
 ---
 
@@ -328,7 +316,7 @@ Results are appended to:
 
 ### `train/train_denoise.py`
 
-**Line 95** — `step_lr` was hardcoded to 50:
+Line 95 — `step_lr` was hardcoded to 50:
 
 ```python
 # Original
@@ -362,7 +350,6 @@ Required for MIST dataset support — MIST images are JPEGs, not PNGs.
 - **`val_ps` is not used** — the validation dataloader ignores `--val_ps`. Validation always runs on full images.
 - **`model_latest.pth` saves after every epoch** — this is what part 2 resumes from.
 - **`model_best.pth` saves when validation PSNR improves** — use this for inference.
-- **Output path structure** — determined by `--dataset` and `--env`: `{save_dir}/denoising/{dataset}/Uformer_B{env}/`. The `denoising/` subfolder is hardcoded in `train/train_denoise.py` and can be changed there if needed.
-- **Always use neutral squashfs** — `BCI.sqsh`, `MIST_*_neutral.sqsh`. Old format squashfs files (`BCI_Uformer_split.sqsh`, `MIST_*_Uformer.sqsh`) have been deleted.
+- **Output path structure** — determined by `--dataset` and `--env`: `{save_dir}/denoising/{dataset}/Uformer_B{env}/`. The `denoising/` subfolder is hardcoded in `train/train_denoise.py`.
+- **Always use neutral squashfs** — `BCI.sqsh`, `MIST_*_neutral.sqsh`. Old format squashfs files have been deleted.
 - **nvidia-smi graceful fallback** — training wrappers use `nvidia-smi 2>/dev/null || true` so they work on both NVIDIA and AMD nodes without crashing.
-```
